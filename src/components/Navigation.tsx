@@ -38,7 +38,7 @@ export default function Navigation({ pageTitle, pageActions }: NavigationProps) 
     { id: 'dev-tools', label: 'Dev Tools', path: '/dev-controls' },
     { id: 'helpdesk', label: 'HelpDesk', path: '/helpdesk' },
     { id: 'calendar', label: 'Calendar', path: '/calendar' },
-    { id: 'team', label: 'Development', path: '/team' },
+    { id: 'development', label: 'Development', path: '/development' },
   ];
 
   const getActiveTab = () => {
@@ -47,7 +47,8 @@ export default function Navigation({ pageTitle, pageActions }: NavigationProps) 
     if (pathname?.startsWith('/dev-controls')) return 'dev-tools';
     if (pathname?.startsWith('/helpdesk')) return 'helpdesk';
     if (pathname?.startsWith('/calendar')) return 'calendar';
-    if (pathname?.startsWith('/team')) return 'team';
+    if (pathname?.startsWith('/development')) return 'development';
+    if (pathname?.startsWith('/team')) return 'development'; // Redirect old team to development
     return '';
   };
 
@@ -217,7 +218,7 @@ export default function Navigation({ pageTitle, pageActions }: NavigationProps) 
                       {activeTab === 'dev-tools' && 'Development Tools'}
                       {activeTab === 'helpdesk' && 'Support Center'}
                       {activeTab === 'calendar' && 'Team Schedule'}
-                      {activeTab === 'team' && 'Development Team'}
+                      {activeTab === 'development' && 'Development Environment'}
                     </>
                   )}
                 </h1>

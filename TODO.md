@@ -74,9 +74,20 @@
 - [x] **Dashboard reads Gateway JWT** - UserContext.tsx now parses accessToken cookie
 - [x] **dev_users table created** - For Dashboard user auth/permissions
 
+### Completed (Dec 13, 2025)
+- [x] **Per-droplet auth system built** - Each droplet runs auth on port 7000
+- [x] **Engine auth service created** - `NextBid/auth/server.js` with `/auto-login` endpoint
+- [x] **Auto-login token exchange** - Gateway token verified, local token issued, no re-login needed
+- [x] **Dashboard deployed to server** - Running at `/var/www/dashboard-7500` via PM2
+- [x] **Firewall ports opened** - 7500, 7100, 7102-7106 on Patcher; 7000 on Engine/Dev/Portals
+
 ### Files Modified
-1. `gateway-7000/server.js` - Login checks all 6 product user tables
-2. `nextbid-dashboard-v2/src/app/settings/UserContext.tsx` - Reads Gateway JWT, queries `dev_users`
+1. `gateway-7000/server.js` - Login checks all 6 product user tables, fixed dashboard redirect
+2. `dashboard-7500/src/app/settings/UserContext.tsx` - Reads Gateway JWT, queries `dev_users`
+3. `dashboard-7500/src/app/api/engine-redirect/route.ts` - Passes token to engine auth for auto-login
+4. `NextBid/auth/server.js` - Engine droplet auth service on port 7000
+5. `NextBid/admin/server.js` - Added role-based permission middleware (6 levels)
+6. `gateway-7000/docs/DOMAINS-AND-AUTH.md` - Documented per-droplet auth architecture
 
 ---
 
@@ -199,8 +210,9 @@
 #### Gateway Integration
 - [x] Updated gateway tradeline proxy to 5-digit ports (31001-31020)
 - [x] Proxy routes to engine server (64.23.151.201) instead of localhost
-- [x] "Online" button URL: `http://134.199.209.140:7000/tradelines/{name}/`
+- [x] "Online" button uses `/api/engine-redirect?port={port}` for seamless auth
 - [x] Opened firewall ports 31001-31020 on engine server
+- [x] Auto-login flow: Dashboard → Engine Auth (7000) → Tradeline (31xxx)
 
 ### Still TODO
 - [ ] Real-time feed panel (WebSocket instead of polling)
@@ -325,6 +337,30 @@
 - [ ] Keywords editor
 - [ ] Categories manager
 - [ ] Config push to servers
+
+### Tradeline Server Management (NEW - Dec 13, 2025)
+**Goal:** Launch/manage tradeline servers from dashboard dev tools
+
+#### API Endpoints Needed
+- [ ] `POST /api/engine/tradelines/start` - Start a tradeline slot (PM2)
+- [ ] `POST /api/engine/tradelines/stop` - Stop a tradeline slot
+- [ ] `POST /api/engine/tradelines/restart` - Restart a tradeline slot
+- [ ] `GET /api/engine/tradelines/status` - Get PM2 status of all slots
+
+#### UI Components
+- [ ] Tradeline Slot Manager panel in Dev Tools
+- [ ] Start/Stop/Restart buttons per slot
+- [ ] Status indicators (running/stopped/errored)
+- [ ] Log viewer for startup output
+
+#### Integration
+- [ ] SSH or Patcher API to Engine droplet (64.23.151.201)
+- [ ] PM2 commands: `pm2 start slot-01`, `pm2 stop slot-01`, etc.
+- [ ] Role requirement: Level 3+ (Engineer)
+
+#### Slot Naming
+- slot-01 through slot-20 correspond to ports 31001-31020
+- Each slot runs 5 workers (Main, Fetch, Parse, AI, Store)
 
 ---
 
@@ -473,27 +509,146 @@ Central analytics hub for all 6 products with consistent product tab navigation 
 
 ---
 
-## Next Up: Development Tab (Engineer+ Only)
+## Development Tab (Engineer+ Only) - IN PROGRESS
 
-### Embedded Claude Interface
-- [ ] Install Claude Code CLI on server
-- [ ] Create terminal component with PowerShell-style interface
-- [ ] WebSocket connection to server terminal
-- [ ] Execute Claude commands on demand
-- [ ] Code review requests
-- [ ] File reading/editing through Claude
-- [ ] Context: Access to codebase docs
+### UI Components v1 ✓ (Dec 13, 2025)
+- [x] Main page layout with 4-panel design (`src/app/development/page.tsx`)
+- [x] File Explorer panel (`components/FileExplorer.tsx`) - tree view with icons
+- [x] Code Editor panel (`components/CodeEditor.tsx`) - syntax highlighting, line numbers
+- [x] Terminal panel (`components/TerminalPanel.tsx`) - multi-tab, quick commands
+- [x] Claude Chat panel (`components/ClaudeChat.tsx`) - quick prompts (Explain, Review, Refactor)
+- [x] Deployment Bar (`components/DeploymentBar.tsx`) - DEV→TEST→PROD pipeline
+- [x] Role-based access check (Engineer+ required)
+- [x] Environment selector (Dev/Test/Prod)
+- [x] Project selector (hardcoded list)
+- [x] Navigation tab updated to `/development`
 
-### Implementation Options
-1. **Direct CLI**: SSH to server, run `claude` commands
-2. **API Integration**: Use Anthropic API directly
-3. **Hybrid**: API for chat, CLI for file operations
+### UI Redesign Needed (Dec 13, 2025)
+- [ ] **Clean main area** - Claude Chat takes full width for development
+- [ ] **Sidebar pop-out icons**:
+  - 📁 File Manager - local workspace files
+  - 💻 Terminal - for experienced devs
+  - 💰 AI Usage - cost tracking widget
+  - 🌐 Virtual Browser - Puppeteer viewer
+- [ ] Pop-outs slide from sidebar or float as windows
+- [ ] Claude Chat shows code streaming (like Claude Chat web - code flows down)
+- [ ] "Apply Code" button to save Claude's output to file
+
+### Virtual Browser / Puppeteer Viewer (NEW)
+Purpose: Visual testing, scraper building, click recording
+- [ ] Embedded browser preview (iframe or Puppeteer headful)
+- [ ] URL bar to navigate to any app/page
+- [ ] **Record Mode**:
+  - Track clicks (element, x/y coordinates)
+  - Track inputs (which field, what was typed)
+  - Capture CSS selectors automatically
+- [ ] **Screenshot** button for bug reports
+- [ ] **Inspect Element** - hover to get selector
+- [ ] **Get Selector** - click element, copy selector for scraper
+- [ ] AI monitors interactions for:
+  - Scraper keyword placement
+  - Form field mapping
+  - Click sequence recording
+- [ ] Save recorded sessions as scraper configs
+- [ ] Replay recorded sessions for testing
+
+### Use Cases for Virtual Browser:
+1. Test UI changes without switching windows
+2. Build scrapers visually (click element → get selector)
+3. Debug scrapers (watch them run, see where they fail)
+4. Record login flows for automation
+5. Train AI on click patterns and form fields
+
+### Project Management (Database-Driven)
+- [ ] Create `dev_projects` table in Supabase
+  ```sql
+  id UUID, name VARCHAR, slug VARCHAR,
+  git_repo VARCHAR, server_path VARCHAR,
+  droplet_id VARCHAR, port_prefix VARCHAR,
+  created_at, created_by, is_active
+  ```
+- [ ] "Add New Project" modal in UI
+- [ ] Project list fetched from database (not hardcoded)
+- [ ] Project settings page (edit repo, path, etc.)
+
+### Project Locking System (CRITICAL)
+- [ ] Create `dev_project_locks` table
+  ```sql
+  id UUID, project_id UUID,
+  locked_by UUID (user), locked_at TIMESTAMP,
+  branch VARCHAR, purpose VARCHAR,
+  is_locked BOOLEAN
+  ```
+- [ ] Create `dev_project_unlocks` table (history)
+  ```sql
+  id UUID, project_id UUID, lock_id UUID,
+  unlocked_by UUID, unlocked_at TIMESTAMP,
+  patch_notes TEXT, changes_summary TEXT,
+  commit_hash VARCHAR
+  ```
+- [ ] Lock button shows 🔒 with dev's name when locked
+- [ ] Other devs see "Locked by [Name]" - cannot edit
+- [ ] Unlock requires: patch notes + changes summary
+- [ ] Lock history visible (who worked on what, when)
+
+### Local Workspace Flow
+```
+1. Dev selects project + environment
+2. Dev clicks "Pull" → git pull to local folder on their PC
+3. File Explorer shows LOCAL files (C:\Projects\...)
+4. Dev works with Claude, edits files locally
+5. Dev clicks "Push" → git add, commit (with notes), push
+6. If project was locked, auto-unlock after push
+```
+
+### Claude Chat Improvements
+- [ ] Streaming responses (code flows down like Claude Chat web)
+- [ ] Syntax highlighting in chat messages
+- [ ] "Apply to File" button on code blocks
+- [ ] File context shown (which file Claude is looking at)
+- [ ] Conversation history saved per project
+
+### AI Cost Tracking (IMPORTANT)
+- [ ] Create `dev_ai_usage` table
+  ```sql
+  id UUID,
+  user_id UUID,
+  project_id UUID,
+  model VARCHAR (claude-3-opus, claude-3-sonnet, etc.),
+  input_tokens INT,
+  output_tokens INT,
+  cost_usd DECIMAL(10,6),
+  request_type VARCHAR (chat, code-review, explain, etc.),
+  created_at TIMESTAMP
+  ```
+- [ ] Log every Claude API call with token counts
+- [ ] Calculate cost based on model pricing:
+  - Opus: $15/M input, $75/M output
+  - Sonnet: $3/M input, $15/M output
+- [ ] Dashboard showing:
+  - Cost by user (today/week/month)
+  - Cost by project
+  - Cost by request type
+  - Total team spend
+- [ ] Usage alerts (warn at 80%, block at 100% of budget)
+- [ ] Per-user monthly limits (optional)
+- [ ] AI Cost widget in Dev Tools Analytics page
+
+### API Endpoints Needed
+- [ ] `GET /api/development/projects` - List projects from DB
+- [ ] `POST /api/development/projects` - Create new project
+- [ ] `GET /api/development/locks` - Get current locks
+- [ ] `POST /api/development/lock` - Lock a project
+- [ ] `POST /api/development/unlock` - Unlock with notes
+- [ ] `POST /api/development/claude` - Claude API with streaming
+- [ ] `POST /api/development/execute` - Terminal command execution
 
 ### Security
-- Engineer+ role required
-- Audit logging of all commands
-- Sandboxed execution environment
-- Rate limiting
+- [x] Engineer+ role required (level 3+)
+- [ ] Audit logging of all commands
+- [ ] Lock prevents other devs from editing
+- [ ] Prod environment is read-only
+- [ ] Patch notes required for unlock
 
 ---
 
@@ -537,21 +692,23 @@ Security Operations Center - monitor all products/sites for threats, unauthorize
 
 ## Deployment Checklist
 
-### Phase 1: Local Testing
-- [X] Dashboard running on port 7500 local only till this one replaces the other one
+### Phase 1: Local Testing ✓
+- [x] Dashboard running on port 7500 local only till this one replaces the other one
 - [x] All UI components working
 - [ ] Database connections verified
 
-### Phase 2: Server Deployment
-- [ ] Upload to Patcher droplet (134.199.209.140)
-- [ ] PM2 configuration
-- [ ] Nginx proxy setup
-- [ ] SSL certificates
+### Phase 2: Server Deployment ✓ (Dec 13, 2025)
+- [x] Upload to Patcher droplet (134.199.209.140) - `/var/www/dashboard-7500`
+- [x] PM2 configuration - running as `dashboard-7500`
+- [x] Firewall port 7500 opened
+- [ ] Nginx proxy setup (using direct IP:port for now)
+- [ ] SSL certificates (using HTTP for now)
 
-### Phase 3: Gateway Integration
-- [ ] Login flow through nextbidengine.com
-- [ ] JWT validation
-- [ ] Role-based routing
+### Phase 3: Gateway Integration ✓ (Dec 13, 2025)
+- [x] Login flow through gateway (134.199.209.140:7000)
+- [x] JWT validation working
+- [x] Role-based routing via auto-login endpoint
+- [x] Engine redirect API for tradeline access (`/api/engine-redirect`)
 
 ### Phase 4: Live Testing
 - [ ] All 6 patchers responding
@@ -568,10 +725,30 @@ Security Operations Center - monitor all products/sites for threats, unauthorize
 | Dec 11 | Initial schema | All dev_* tables |
 | Dec 11 | Added calendar tables | dev_calendar_events, dev_time_off_requests, dev_timesheet_adjustments |
 | Dec 11 | Added chat tables | dev_chat_channels, dev_chat_messages, dev_chat_read_receipts |
+| Dec 13 | Engine role permissions added | dev_roles (6 levels: Support→Superadmin) |
 
 ---
 
 ## Notes
+
+### Per-Droplet Authentication (Dec 13, 2025)
+Each droplet runs its own auth service on port 7000. Cookies are domain-specific.
+
+| Droplet | IP | Auth Port | Protects |
+|---------|-----|-----------|----------|
+| Patcher | 134.199.209.140 | 7000 | Gateway, Dashboard, Patchers (7100-7106) |
+| Engine | 64.23.151.201 | 7000 | Tradelines (31001-31020) |
+| Dev | 161.35.229.220 | 7000 | Dev/Test servers (5000-5999) |
+| Portals | 146.190.169.112 | 7000 | User products (8000-8999) |
+
+**Auto-Login Flow:**
+1. User clicks "Online" on dashboard
+2. Dashboard calls `/api/engine-redirect?port=31006`
+3. API redirects to `http://64.23.151.201:7000/auto-login?token=xxx&redirect=31006`
+4. Engine auth verifies gateway token, issues local token
+5. User lands on tradeline (31006) - already authenticated
+
+See: `gateway-7000/docs/DOMAINS-AND-AUTH.md`
 
 ### Server Architecture (5-Digit Port Scheme)
 - Engine droplet: 64.23.151.201 (20 tradelines, ports 31001-31020)
@@ -582,15 +759,29 @@ Security Operations Center - monitor all products/sites for threats, unauthorize
 - Workers: 0=Main, 1=Fetch, 2=Parse, 3=AI, 4=Store
 - Total services: 100 (20 slots x 5 workers)
 
-### Role Hierarchy
+### Role Hierarchy (Dashboard)
 | Role | Calendar | Servers | Dev Tools | HelpDesk | Development |
 |------|----------|---------|-----------|----------|-------------|
+| superadmin | Full | Full | Full | Full | Full |
 | admin | Full | Full | Full | Full | Full |
 | lead | Full | Full | Full | Full | Full |
-| engineer | Own teams | View | Limited | View | No |
+| engineer | Own teams | Full | Full | View | Full |
 | developer | Own teams | View | Limited | View | No |
+| support | Own teams | View | No | Full | No |
+
+### Role Hierarchy (Engine - 6 Levels)
+| Level | Role | Engine Permissions |
+|-------|------|-------------------|
+| 6 | Superadmin | All operations + all tradelines |
+| 5 | Admin | All operations on assigned tradelines |
+| 4 | Lead | Deploy + manage users + tradeline control |
+| 3 | Engineer | Push to test + start/stop/restart tradelines |
+| 2 | Developer | Reboot + credentials + view logs |
+| 1 | Support | View only + helpdesk |
+
+Engine API protection: Level 3+ required for POST/DELETE operations.
 
 ---
 
 ## Last Updated
-December 12, 2025
+December 13, 2025
