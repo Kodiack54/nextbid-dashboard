@@ -33,6 +33,7 @@ interface TradelineHealth {
   online?: number;
   total?: number;
   port?: number;
+  slotId?: string;
   processes?: Process[];
 }
 
@@ -59,13 +60,24 @@ interface TradelinesClientProps {
 
 type WorkerType = 'main' | 'w1' | 'w2' | 'w3' | 'w4';
 
-const WORKER_TABS: { id: WorkerType; label: string; suffix: string }[] = [
-  { id: 'main', label: 'Engine', suffix: '006' },
-  { id: 'w1', label: 'Discovery', suffix: '106' },
-  { id: 'w2', label: 'Scope', suffix: '206' },
-  { id: 'w3', label: 'Research', suffix: '306' },
-  { id: 'w4', label: 'Assistant', suffix: '406' },
+// Worker tab definitions - suffix is computed dynamically from slotId
+const WORKER_TAB_DEFS: { id: WorkerType; label: string; offset: number }[] = [
+  { id: 'main', label: 'Engine', offset: 0 },
+  { id: 'w1', label: 'Discovery', offset: 1 },
+  { id: 'w2', label: 'Scope', offset: 2 },
+  { id: 'w3', label: 'Research', offset: 3 },
+  { id: 'w4', label: 'Assistant', offset: 4 },
 ];
+
+// Get worker tabs with dynamic suffix based on selected tradeline's slotId
+function getWorkerTabs(slotId: string | undefined): { id: WorkerType; label: string; suffix: string }[] {
+  const slot = slotId || '00';
+  return WORKER_TAB_DEFS.map(tab => ({
+    id: tab.id,
+    label: tab.label,
+    suffix: tab.offset === 0 ? slot : `${tab.offset}${slot}`,
+  }));
+}
 
 export default function TradelinesClient({ tradelines, healthAll, analytics, initialError }: TradelinesClientProps) {
   const [error, setError] = useState<string | null>(initialError);
@@ -202,7 +214,7 @@ export default function TradelinesClient({ tradelines, healthAll, analytics, ini
               <div className="w-px h-6 bg-gray-700 mx-1" />
 
               {/* Worker tabs - only show when feed is active */}
-              {activeTab === 'feed' && WORKER_TABS.map((tab) => (
+              {activeTab === 'feed' && getWorkerTabs(selectedHealth?.slotId).map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveWorker(tab.id)}
